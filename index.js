@@ -72,9 +72,69 @@ async function run() {
         const paymentCollections = myDB.collection('payment');
 
         //mongoDB remove duplicate transaction for paymentCollections:
-        await paymentCollections.createIndex({transactionId : 1}, {unique : true});
-       
+        await paymentCollections.createIndex({ transactionId: 1 }, { unique: true });
 
+
+        //--------------------admin for analitysic-----------------------------
+        app.get("/analytics/users", async (req, res) => {
+            const result = await userCollection.countDocuments();
+            res.send(result);
+        })
+        app.get("/analytics/scholersiph", async (req, res) => {
+            const result = await scholarshipsCollection.countDocuments();
+            res.send(result)
+        })
+        app.get("/analytics/application-fees", async (req, res) => {
+            const countFees = [
+                // convert to the string to number/int:
+                {
+                    $addFields : {
+                        applicationFees : {$toInt : "$applicationFees"}
+                    }
+                },
+                // addition/count/aggregate total fees:
+                {
+                    $group: {
+                        _id: null,
+                        totalFees: {
+                            $sum: "$applicationFees"
+                        }
+                    }
+                }
+            ]
+            const result = await applicationsCollection.aggregate(countFees).toArray();
+            // result output is array then define/select the res feild:
+            const sendClint = {totalFees : result[0]?.totalFees || 0};
+            res.send(sendClint);
+        })
+        app.get("/analytics/application/university", async(req, res)=> {
+            const university = [
+               {
+                 $group : {
+                    _id: "$universityName",
+                    count : {
+                        $sum : 1
+                    }
+                }
+               }
+            ];
+            const result = await scholarshipsCollection.aggregate(university).toArray();
+            res.send(result)
+        })
+        app.get("/analytics/application/scholersiph", async(req, res)=> {
+            const scholarship = [
+                {
+                    $group : {
+                        _id : "$scholarshipName",
+                        count : {
+                            $sum : 1
+                        }
+                    }
+                }
+            ];
+            const result = await applicationsCollection.aggregate(scholarship).toArray();
+            res.send(result);
+        })
 
         //---------------users Related Apis-----------------------
         app.get('/users', verifayFBtoken, async (req, res) => {
@@ -90,7 +150,18 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result)
         })
-        
+
+        app.get("/admin-users", verifayFBtoken, async (req, res) => {
+            const role = req.query.role;
+            const query = {};
+            if (role) {
+                query.role = role;
+            }
+            const cursor = userCollection.find(query);
+            const result = await cursor.toArray();
+            res.send(result);
+        })
+
         app.post('/users', async (req, res) => {
             const user = req.body;
             user.role = "student"
@@ -103,6 +174,26 @@ async function run() {
             }
 
             const result = await userCollection.insertOne(user);
+            res.send(result)
+        })
+
+        app.delete("/admin-user/:id", async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await userCollection.deleteOne(query);
+            res.send(result);
+        })
+
+        app.patch("/users/:id", async (req, res) => {
+            const id = req.params.id;
+            const recived = req.body;
+            const query = { _id: new ObjectId(id) };
+            const update = {
+                $set: {
+                    role: recived.role
+                }
+            }
+            const result = await userCollection.updateOne(query, update);
             res.send(result)
         })
         // -------------scholarships related apis---------------------
@@ -131,22 +222,22 @@ async function run() {
             res.send(result);
         })
 
-        app.patch("/scholarships/:id", async(req, res)=> {
+        app.patch("/scholarships/:id", async (req, res) => {
             const id = req.params.id;
             const recived = req.body;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const update = {
-                $set : {
+                $set: {
                     ...recived
                 }
             }
             const result = await scholarshipsCollection.updateOne(query, update);
             res.send(result);
-        } )
+        })
 
-        app.delete("/scholarships/:id", async(req, res)=> {
+        app.delete("/scholarships/:id", async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)}
+            const query = { _id: new ObjectId(id) }
             const result = await scholarshipsCollection.deleteOne(query);
             res.send(result);
         })
@@ -174,9 +265,9 @@ async function run() {
             res.send(result)
         })
 
-        app.delete('/application/:id', async(req, res)=> {
+        app.delete('/application/:id', async (req, res) => {
             const id = req.params.id;
-            const query = {_id : new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await applicationsCollection.deleteOne(query);
             res.send(result);
         })
@@ -189,10 +280,10 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result);
         })
-        app.get("/my-review", async(req, res)=> {
+        app.get("/my-review", async (req, res) => {
             const reviewerName = req.query.reviewerName;
-            const query = {reviewerName: reviewerName};
-            if(reviewerName){
+            const query = { reviewerName: reviewerName };
+            if (reviewerName) {
                 query.reviewerName = reviewerName;
             }
             const cursor = reviewsCollection.find(query);
@@ -205,10 +296,10 @@ async function run() {
             const result = await reviewsCollection.insertOne(review);
             res.send(result);
         })
-        app.patch("/review/:id", async(req, res)=> {
+        app.patch("/review/:id", async (req, res) => {
             const id = req.params.id;
             const data = req.body;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const update = {
                 $set: {
                     rating: data.rating,
@@ -218,9 +309,9 @@ async function run() {
             const result = await reviewsCollection.updateOne(query, update);
             res.send(result);
         })
-        app.delete("/review/:id", async(req, res)=> {
+        app.delete("/review/:id", async (req, res) => {
             const id = req.params.id;
-            const query = {_id: new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const result = await reviewsCollection.deleteOne(query);
             res.send(result);
         })
@@ -314,7 +405,7 @@ async function run() {
                     scholarshipName: session.metadata.scholarshipName,
                     universityName: session.metadata.universityName,
                     userName: session.metadata.userName,
-                    amountPaid: session.amount_total / 100,  
+                    amountPaid: session.amount_total / 100,
                     transactionId: session.payment_intent,
                     trackingId: trackingId,
                     modifyApplication: updateResult,
@@ -348,9 +439,9 @@ async function run() {
         })
 
         //get payment success:
-        app.get("/payment-success/:transactionId", async(req, res)=> {
+        app.get("/payment-success/:transactionId", async (req, res) => {
             const transactionId = req.params.transactionId;
-            const query = {transactionId: transactionId};
+            const query = { transactionId: transactionId };
             const result = await paymentCollections.findOne(query);
             res.send(result);
         })

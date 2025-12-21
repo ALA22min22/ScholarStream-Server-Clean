@@ -265,6 +265,31 @@ async function run() {
             res.send(result)
         })
 
+        app.patch("/application/:id", async(req, res) => {
+            const id = req.params.id;
+            const recive = req.body;
+            const query = {_id : new ObjectId(id)};
+            const update = {
+                $set : {
+                    feedback : recive.feedback
+                }
+            }
+            const result = await applicationsCollection.updateOne(query, update);
+            res.send(result);
+        })
+        app.patch("/application/application-status/:id", async(req, res) => {
+            const id = req.params.id;
+            const recive = req.body;
+            const query = {_id : new ObjectId(id)};
+            const update = {
+                $set : {
+                    applicationStatus : recive.applicationStatus
+                }
+            }
+            const result = await applicationsCollection.updateOne(query, update);
+            res.send(result);
+        })
+
         app.delete('/application/:id', async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };

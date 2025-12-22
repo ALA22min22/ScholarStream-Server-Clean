@@ -8,7 +8,9 @@ const admin = require("firebase-admin");
 const stripe = require('stripe')(process.env.STRIPE_SECRET);
 
 // -----------firebase-project setting- service account----
-const serviceAccount = require("./scholarstream-2217c-firebase-adminsdk-fbsvc-f2577185a5.json");
+
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
 
@@ -53,7 +55,7 @@ const verifayFBtoken = async (req, res, next) => {
 
 // -----------------------------------------------------------
 
-const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASS}@meaningfull1.roiudgk.mongodb.net/?appName=meaningfull1`;
+const uri = `mongodb+srv://${process.env.DB_NAME}:${process.env.DB_PASS}@meaningfull1.roiudgk.mongodb.net/?appName=meaningfull1`;
 
 const client = new MongoClient(uri, {
     serverApi: {
@@ -537,8 +539,8 @@ async function run() {
 
 
 
-        await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        // await client.db("admin").command({ ping: 1 });
+        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
 
     }

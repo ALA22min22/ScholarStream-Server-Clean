@@ -29,6 +29,7 @@ function generateTrackingID() {
 app.use(cors());
 app.use(express.json());
 
+//firebase
 const verifayFBtoken = async (req, res, next) => {
     const token = req.headers.authorization;
     if (!token) {
@@ -39,6 +40,7 @@ const verifayFBtoken = async (req, res, next) => {
         const decoded = await admin.auth().verifyIdToken(idToken)
         console.log("decode in the token for Firebase Servise verifications", decoded);
         req.decoded_email = decoded.email;
+        // console.log("the email:",req.decoded_email)
         next();
     }
     catch (error) {
@@ -46,6 +48,9 @@ const verifayFBtoken = async (req, res, next) => {
     }
 
 }
+
+
+
 // -----------------------------------------------------------
 
 const uri = `mongodb+srv://${process.env.USER_NAME}:${process.env.USER_PASS}@meaningfull1.roiudgk.mongodb.net/?appName=meaningfull1`;
@@ -74,22 +79,51 @@ async function run() {
         //mongoDB remove duplicate transaction for paymentCollections:
         await paymentCollections.createIndex({ transactionId: 1 }, { unique: true });
 
+        //admin
+        const verifyAdmintoken = async (req, res, next) => {
+
+            const email = req.decoded_email;
+            const query = { email };
+            const user = await userCollection.findOne(query);
+            // console.log("user from DB:", user);
+
+            if (!user || user.role !== "admin") {
+                return res.status(403).send({ message: "Forbiddne Access" })
+            }
+
+            next();
+        }
+
+        //modaretor
+        const verifyModaretorToken = async (req, res, next) => {
+
+            const email = req.decoded_email?.toLowerCase();
+            console.log("my email :", email)
+            const query = { email };
+            const user = await userCollection.findOne(query);
+
+            if (!user || user.role !== "modaretor") {
+                return res.status(403).send({ message: "Forbiddne Access" })
+            }
+
+            next();
+        }
 
         //--------------------admin for analitysic-----------------------------
-        app.get("/analytics/users", async (req, res) => {
+        app.get("/analytics/users", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const result = await userCollection.countDocuments();
             res.send(result);
         })
-        app.get("/analytics/scholersiph", async (req, res) => {
+        app.get("/analytics/scholersiph", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const result = await scholarshipsCollection.countDocuments();
             res.send(result)
         })
-        app.get("/analytics/application-fees", async (req, res) => {
+        app.get("/analytics/application-fees", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const countFees = [
                 // convert to the string to number/int:
                 {
-                    $addFields : {
-                        applicationFees : {$toInt : "$applicationFees"}
+                    $addFields: {
+                        applicationFees: { $toInt: "$applicationFees" }
                     }
                 },
                 // addition/count/aggregate total fees:
@@ -104,30 +138,30 @@ async function run() {
             ]
             const result = await applicationsCollection.aggregate(countFees).toArray();
             // result output is array then define/select the res feild:
-            const sendClint = {totalFees : result[0]?.totalFees || 0};
+            const sendClint = { totalFees: result[0]?.totalFees || 0 };
             res.send(sendClint);
         })
-        app.get("/analytics/application/university", async(req, res)=> {
+        app.get("/analytics/application/university", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const university = [
-               {
-                 $group : {
-                    _id: "$universityName",
-                    count : {
-                        $sum : 1
+                {
+                    $group: {
+                        _id: "$universityName",
+                        count: {
+                            $sum: 1
+                        }
                     }
                 }
-               }
             ];
             const result = await scholarshipsCollection.aggregate(university).toArray();
             res.send(result)
         })
-        app.get("/analytics/application/scholersiph", async(req, res)=> {
+        app.get("/analytics/application/scholersiph", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const scholarship = [
                 {
-                    $group : {
-                        _id : "$scholarshipName",
-                        count : {
-                            $sum : 1
+                    $group: {
+                        _id: "$scholarshipName",
+                        count: {
+                            $sum: 1
                         }
                     }
                 }
@@ -151,7 +185,7 @@ async function run() {
             res.send(result)
         })
 
-        app.get("/admin-users", verifayFBtoken, async (req, res) => {
+        app.get("/admin-users", verifayFBtoken,  async (req, res) => {
             const role = req.query.role;
             const query = {};
             if (role) {
@@ -160,6 +194,13 @@ async function run() {
             const cursor = userCollection.find(query);
             const result = await cursor.toArray();
             res.send(result);
+        })
+
+        app.get("/users/:email/role", async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email };
+            const user = await userCollection.findOne(query);
+            res.send({ role: user?.role || "student" })
         })
 
         app.post('/users', async (req, res) => {
@@ -177,14 +218,14 @@ async function run() {
             res.send(result)
         })
 
-        app.delete("/admin-user/:id", async (req, res) => {
+        app.delete("/admin-user/:id", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await userCollection.deleteOne(query);
             res.send(result);
         })
 
-        app.patch("/users/:id", async (req, res) => {
+        app.patch("/users/:id", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const id = req.params.id;
             const recived = req.body;
             const query = { _id: new ObjectId(id) };
@@ -214,15 +255,38 @@ async function run() {
             const result = await scholarshipsCollection.findOne(query);
             res.send(result);
         })
+        app.get("/search-scholarships", async (req, res) => {
+            const searchData = req.query.searchData;
+            const sortField = req.query.sortField || "postDate";
+            const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
 
-        app.post("/scholarships", async (req, res) => {
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+
+            const query = {};
+            if (searchData) {
+                query.$or = [
+                    { scholarshipName: { $regex: searchData, $options: "i" } },
+                    { universityName: { $regex: searchData, $options: "i" } },
+                    { degree: { $regex: searchData, $options: "i" } }
+                ]
+            };
+            const cursor = scholarshipsCollection.find(query).sort({ [sortField]: sortOrder }).skip(skip).limit(limit); //squre bracket notation for dynamic value it is not array.
+            const result = await cursor.toArray();
+            const total = await scholarshipsCollection.countDocuments(query);
+
+            res.send({ result, total });
+        })
+
+        app.post("/scholarships", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const scholarships = req.body;
             scholarships.createAT = new Date();
             const result = await scholarshipsCollection.insertOne(scholarships);
             res.send(result);
         })
 
-        app.patch("/scholarships/:id", async (req, res) => {
+        app.patch("/scholarships/:id", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const id = req.params.id;
             const recived = req.body;
             const query = { _id: new ObjectId(id) };
@@ -235,7 +299,7 @@ async function run() {
             res.send(result);
         })
 
-        app.delete("/scholarships/:id", async (req, res) => {
+        app.delete("/scholarships/:id", verifayFBtoken, verifyAdmintoken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) }
             const result = await scholarshipsCollection.deleteOne(query);
@@ -243,7 +307,7 @@ async function run() {
         })
 
         //----------------------application collections-----------------
-        app.get("/applications", async (req, res) => {
+        app.get("/applications", verifayFBtoken, async (req, res) => {
             const userEmail = req.query.userEmail;
             const query = {};
             if (userEmail) {
@@ -265,32 +329,32 @@ async function run() {
             res.send(result)
         })
 
-        app.patch("/application/:id", async(req, res) => {
+        app.patch("/application/:id", verifayFBtoken, verifyModaretorToken, async (req, res) => {
             const id = req.params.id;
             const recive = req.body;
-            const query = {_id : new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const update = {
-                $set : {
-                    feedback : recive.feedback
+                $set: {
+                    feedback: recive.feedback
                 }
             }
             const result = await applicationsCollection.updateOne(query, update);
             res.send(result);
         })
-        app.patch("/application/application-status/:id", async(req, res) => {
+        app.patch("/application/application-status/:id", verifayFBtoken, verifyModaretorToken, async (req, res) => {
             const id = req.params.id;
             const recive = req.body;
-            const query = {_id : new ObjectId(id)};
+            const query = { _id: new ObjectId(id) };
             const update = {
-                $set : {
-                    applicationStatus : recive.applicationStatus
+                $set: {
+                    applicationStatus: recive.applicationStatus
                 }
             }
             const result = await applicationsCollection.updateOne(query, update);
             res.send(result);
         })
 
-        app.delete('/application/:id', async (req, res) => {
+        app.delete('/application/:id', verifayFBtoken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await applicationsCollection.deleteOne(query);
@@ -307,7 +371,7 @@ async function run() {
         })
         app.get("/my-review", async (req, res) => {
             const reviewerName = req.query.reviewerName;
-            const query = { reviewerName: reviewerName };
+            const query = {};
             if (reviewerName) {
                 query.reviewerName = reviewerName;
             }
@@ -315,13 +379,13 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result);
         })
-        app.post("/review", async (req, res) => {
+        app.post("/review", verifayFBtoken, async (req, res) => {
             const review = req.body;
             review.date = new Date();
             const result = await reviewsCollection.insertOne(review);
             res.send(result);
         })
-        app.patch("/review/:id", async (req, res) => {
+        app.patch("/review/:id", verifayFBtoken,  async (req, res) => {
             const id = req.params.id;
             const data = req.body;
             const query = { _id: new ObjectId(id) };
@@ -334,7 +398,7 @@ async function run() {
             const result = await reviewsCollection.updateOne(query, update);
             res.send(result);
         })
-        app.delete("/review/:id", async (req, res) => {
+        app.delete("/review/:id", verifayFBtoken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const result = await reviewsCollection.deleteOne(query);

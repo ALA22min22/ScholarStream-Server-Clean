@@ -254,7 +254,7 @@ async function run() {
         // for home
         app.get("/scholership-home", async(req,res)=>{
             const query ={};
-            const cursor = scholarshipsCollection.find(query).limit(6).sort({createAT : 1});
+            const cursor = scholarshipsCollection.find(query).sort({createAT : -1}).limit(6);
             const result = await cursor.toArray();
             res.send(result);
         })

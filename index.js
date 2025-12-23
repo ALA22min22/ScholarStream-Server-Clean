@@ -77,6 +77,7 @@ async function run() {
         const applicationsCollection = myDB.collection('applications');
         const reviewsCollection = myDB.collection('reviews');
         const paymentCollections = myDB.collection('payment');
+        const storyCollections = myDB.collection('success-story');
 
         //mongoDB remove duplicate transaction for paymentCollections:
         await paymentCollections.createIndex({ transactionId: 1 }, { unique: true });
@@ -541,6 +542,14 @@ async function run() {
             const transactionId = req.params.transactionId;
             const query = { transactionId: transactionId };
             const result = await paymentCollections.findOne(query);
+            res.send(result);
+        })
+
+        // ----------------storyCollections---------------
+        app.get("/story", async(req, res)=> {
+            const query = {};
+            const cursor = storyCollections.find(query);
+            const result = await cursor.toArray();
             res.send(result);
         })
 

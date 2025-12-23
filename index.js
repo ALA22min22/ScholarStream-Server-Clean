@@ -251,6 +251,13 @@ async function run() {
             const result = await cursor.toArray();
             res.send(result)
         })
+        // for home
+        app.get("/scholership-home", async(req,res)=>{
+            const query ={};
+            const cursor = scholarshipsCollection.find(query).sort(6).sort({createAT : 1});
+            const result = await cursor.toArray();
+            res.send(result);
+        })
         app.get("/selected-scholarships/:id", async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
@@ -539,8 +546,8 @@ async function run() {
 
 
 
-        // await client.db("admin").command({ ping: 1 });
-        // console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        await client.db("admin").command({ ping: 1 });
+        console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
 
     }

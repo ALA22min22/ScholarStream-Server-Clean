@@ -80,7 +80,7 @@ async function run() {
         const storyCollections = myDB.collection('success-story');
 
         //mongoDB remove duplicate transaction for paymentCollections:
-        await paymentCollections.createIndex({ transactionId: 1 }, { unique: true });
+        // await paymentCollections.createIndex({ transactionId: 1 }, { unique: true });
 
         //admin
         const verifyAdmintoken = async (req, res, next) => {
